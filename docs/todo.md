@@ -1,9 +1,9 @@
 # Now
 
-- Use lpeg
+- Consider splitting fs-requiring code into separate library (e.g. string
+  templates vs file templates)
 
-- Rewrite in pure lua
-- Handle assert failure cases, etc
+- Consider using lpeg
 
 - failing "check" call doesn't cause toku template to exit with a
   failed status
