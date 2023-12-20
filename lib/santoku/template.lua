@@ -24,6 +24,8 @@ local compat = require("santoku.compat")
 
 local M = {}
 
+M.TEMPLATES = setmetatable({}, { __mode = "kv" })
+
 M.MT = {
   __call = function (_, ...)
     return M.compile(...)
@@ -48,7 +50,7 @@ M.STR = {}
 M.FN = {}
 
 M.istemplate = function (t)
-  return compat.hasmeta(t, M.MT_TEMPLATE)
+  return M.TEMPLATES[t] or compat.hasmeta(t, M.MT_TEMPLATE)
 end
 
 M._should_include = function (ext, fp, opts)
@@ -251,6 +253,7 @@ M.compile = function (parent, ...)
       end
     end
 
+    M.TEMPLATES[ret] = true
     return ret
 
   end)
