@@ -1,7 +1,7 @@
 # Now
 
-- Consider splitting fs-requiring code into separate library (e.g. string
-  templates vs file templates)
+- Split fs-requiring code into separate library (e.g. string templates vs file
+  templates)
 
 - Consider using lpeg
 
