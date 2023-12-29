@@ -375,4 +375,22 @@ M.render = function (tmpl, env)
   end)
 end
 
+M.write_deps = function (tmpl, destfile, depsfile, extra)
+  assert(M.istemplate(tmpl))
+  assert(compat.istype.string(destfile))
+  assert(compat.istype.string(depsfile))
+  extra = extra or {}
+  assert(compat.istype.table(extra))
+  return err.pwrap(function (check)
+    local out = gen.chain(
+        gen.pack(destfile, ": "),
+        gen.ivals(extra):interleave(" "),
+        gen.pack(" "),
+        gen.ivals(tmpl.deps):interleave(" "))
+      :vec()
+      :concat()
+    check(fs.writefile(depsfile, out))
+  end)
+end
+
 return setmetatable(M, M.MT)
