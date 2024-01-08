@@ -13,9 +13,11 @@
 -- TODO: Refactor/cleanup.
 
 local str = require("santoku.string")
+local tbl = require("santoku.table")
 local op = require("santoku.op")
 local err = require("santoku.err")
 local inherit = require("santoku.inherit")
+local fun = require("santoku.fun")
 local vec = require("santoku.vector")
 local gen = require("santoku.gen")
 local tup = require("santoku.tuple")
@@ -53,16 +55,18 @@ M.istemplate = function (t)
   return M.TEMPLATES[t] or compat.hasmeta(t, M.MT_TEMPLATE)
 end
 
-M._should_include = function (ext, fp, opts)
-  if opts.exts and not gen.vals(opts.exts):co():includes(ext) then
-    return false
+M.get_action = function (fp, opts)
+  local ext = fs.extension(fp)
+  if (opts.exts and not gen.vals(opts.exts):co():includes(ext)) or
+      gen.vals(tbl.get(opts, "rules", "exclude") or {}):co():find(fun.bindl(string.match, fp))
+  then
+    return "ignore"
+  elseif gen.vals(tbl.get(opts, "rules", "copy") or {}):co():find(fun.bindl(string.match, fp))
+  then
+    return "copy"
+  else
+    return "template"
   end
-  if opts.excludes and gen.vals(opts.excludes):co():find(function (ex)
-    return string.match(fp, ex)
-  end) then
-    return false
-  end
-  return true
 end
 
 M.compiledir = function (parent, dir, opts)
@@ -79,14 +83,11 @@ M.compiledir = function (parent, dir, opts)
     local ret = {}
     fs.files(dir)
       :map(check)
-      :map(function (fp)
+      :filter(function (fp)
+        return M.get_action(fp, opts) == "template"
+      end)
+      :each(function (fp)
         local ext = fs.extension(fp)
-        return ext, fp
-      end)
-      :filter(function (ext, fp)
-        return M._should_include(ext, fp, opts)
-      end)
-      :each(function (ext, fp)
         local tmpl = parent
           and check(parent:compilefile(fp, opts.config))
           or check(M.compilefile(fp, opts.config))

@@ -1,7 +1,7 @@
 local env = {
 
   name = "santoku-template",
-  version = "0.0.9-1",
+  version = "0.0.10-1",
   variable_prefix = "TK_TEMPLATE",
   license = "MIT",
   public = true,
@@ -30,9 +30,11 @@ env.download = env.homepage .. "/releases/download/" .. env.version .. "/" .. en
 return {
   type = "lib",
   env = env,
-  excludes = {
-    "lib/santoku/template.lua",
-    "test/spec/santoku/template.lua",
-    "test/spec/santoku/cli/template.lua"
-  },
+  rules = {
+    copy = {
+      "lib/santoku/template.lua",
+      "test/spec/santoku/template.lua",
+      "test/spec/santoku/cli/template.lua"
+    }
+  }
 }
