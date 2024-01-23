@@ -32,7 +32,7 @@ test("template", function ()
   end)
 
   test("should handle multiple replacements", function ()
-    local ok, tpl = template("<%compile% a = check(template:compilefile('test/res/template/title.html')) %><title><% return a:render() %></title>") -- luacheck: ignore
+    local ok, tpl = template("<%compile% a = check(template:compilefile('test/res/template/title.html')) %><title><% return check(a:render()) %></title>") -- luacheck: ignore
     assert(ok, tpl)
     assert.same(tpl.deps, vec("test/res/template/title.html"))
     local ok, str = tpl:render({ title = "Hello, World!" })
@@ -41,7 +41,7 @@ test("template", function ()
   end)
 
   test("should support sharing fenv to child templates", function ()
-    local ok, tpl = template("<% title = 'Hello, World!' %><title><% return check(template:compilefile('test/res/template/title.html')):render() %></title>") -- luacheck: ignore
+    local ok, tpl = template("<% title = 'Hello, World!' %><title><% return check(check(template:compilefile('test/res/template/title.html')):render()) %></title>") -- luacheck: ignore
     assert(ok, tpl)
     local ok, str = tpl:render({ title = "Hello, World!" })
     assert(ok, str)
@@ -49,7 +49,7 @@ test("template", function ()
   end)
 
   test("should handle whitespace between blocks", function ()
-    local ok, tpl = template("<title><% return check(template:compilefile('test/res/template/title.html')):render() %> <% return check(template:compilefile('test/res/template/name.html')):render() %></title>") -- luacheck: ignore
+    local ok, tpl = template("<title><% return check(check(template:compilefile('test/res/template/title.html')):render()) %> <% return check(check(template:compilefile('test/res/template/name.html')):render()) %></title>") -- luacheck: ignore
     assert(ok, tpl)
     local ok, str = tpl:render({
       title = "Hello, World!",
@@ -60,7 +60,7 @@ test("template", function ()
   end)
 
   test("should support multiple nesting levels ", function ()
-    local ok, tpl = template("<title><% return check(template:compilefile('test/res/template/titles.html')):render() %></title>") -- luacheck: ignore
+    local ok, tpl = template("<title><% return check(check(template:compilefile('test/res/template/titles.html')):render()) %></title>") -- luacheck: ignore
     assert(ok, tpl)
     local ok, str = tpl:render({
       title = "Hello, World!",
@@ -71,7 +71,7 @@ test("template", function ()
   end)
 
   test("should support multiple templates", function ()
-    local ok, tpl = template("<%compile% a, b = check(template:compilefile('test/res/template/title.html')), check(template:compilefile('test/res/template/titles.html')) %><title><% return a:render() %> <% return b:render() %></title>") -- luacheck: ignore
+    local ok, tpl = template("<%compile% a, b = check(template:compilefile('test/res/template/title.html')), check(template:compilefile('test/res/template/titles.html')) %><title><% return check(a:render()) %> <% return check(b:render()) %></title>") -- luacheck: ignore
     assert(ok, tpl)
     assert.same(tpl.deps, vec("test/res/template/title.html", "test/res/template/titles.html"))
     local ok, str = tpl:render({
