@@ -287,39 +287,34 @@ M._get_prefix = function (data)
 
 end
 
-M._append_prefix = function (left, ...)
+M._append_prefix = function (left, s)
 
   local prefix = M._get_prefix(left)
 
   if not prefix then
-    return ...
+    return s
   end
 
-  return tup.map(function (s)
-    return (s:gsub("\n", "\n" .. prefix))
-  end, ...)
+  return (s:gsub("\n", "\n" .. prefix))
 
 end
 
-M._insert = function (output, left, ok, ...)
-  if (ok == nil) then -- luacheck: ignore
-    -- do nothing
+M._insert = function (output, left, s, opts)
+
+  if s == nil then
     return true
-  elseif type(ok) == "string" then
-    -- TODO: should we check that the remaining
-    -- args are strings?
-    output:append(M._append_prefix(left, ok, ...))
-    return true
-  elseif ok == true then
-    -- TODO: should we check that the remaining
-    -- args are strings?
-    output:append(M._append_prefix(left, ...))
-    return true
-  elseif ok == false then
-    return false, ...
-  else
-    return false, "expected string, boolean, or nil: got: " .. type(ok)
+  elseif type(s) ~= "string" then
+    return false, "expected string or nil: got: " .. type(s)
   end
+
+  if not opts or opts.prefix ~= false then
+    output:append(M._append_prefix(left, s))
+    return true
+  else
+    output:append(s)
+    return true
+  end
+
 end
 
 M.render = function (tmpl, env)
