@@ -15,7 +15,7 @@
 local str = require("santoku.string")
 local tbl = require("santoku.table")
 local op = require("santoku.op")
-local err = require("santoku.err")
+local check = require("santoku.check")
 local inherit = require("santoku.inherit")
 local fun = require("santoku.fun")
 local vec = require("santoku.vector")
@@ -79,7 +79,7 @@ M.compiledir = function (parent, dir, opts)
   if opts.trim == nil then
     opts.trim = true
   end
-  return err.pwrap(function (check)
+  return check:wrap(function (check)
     local ret = {}
     fs.files(dir)
       :map(check)
@@ -109,7 +109,7 @@ M.compilefile = function (parent, ...)
     args = tup(parent, args())
     parent = nil
   end
-  return err.pwrap(function (check)
+  return check:wrap(function (check)
     local fp = args()
     local data = check(fs.readfile(fp))
     if parent then
@@ -122,7 +122,7 @@ end
 
 M.compile = function (parent, ...)
   local args = tup(...)
-  return err.pwrap(function (check)
+  return check:wrap(function (check)
 
     local tmpl, config
 
@@ -261,7 +261,7 @@ M.compile = function (parent, ...)
 end
 
 M.renderfile = function (fp, config)
-  return err.pwrap(function (check)
+  return check:wrap(function (check)
     local tpl = check(M.compilefile(fp, config))
     return check(tpl:render())
   end)
@@ -319,7 +319,7 @@ end
 
 M.render = function (tmpl, env)
   assert(M.istemplate(tmpl))
-  return err.pwrap(function (check)
+  return check:wrap(function (check)
 
     tmpl.fenv.check = check
 
@@ -354,7 +354,7 @@ M.render = function (tmpl, env)
           check(M._insert(output, parts:get(i - 1) or tup(), res()))
         end
       else
-        error("this is a bug: chunk has an undefined type")
+        check:error("this is a bug: chunk has an undefined type")
       end
     end
 
@@ -377,7 +377,7 @@ M.write_deps = function (tmpl, destfile, depsfile, extra)
   assert(compat.istype.string(depsfile))
   extra = extra or {}
   assert(compat.istype.table(extra))
-  return err.pwrap(function (check)
+  return check:wrap(function (check)
     local out = gen.chain(
         gen.pack(destfile, ": "),
         gen.ivals(extra):interleave(" "),

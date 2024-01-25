@@ -8,8 +8,8 @@ local env = {
 
   dependencies = {
     "lua >= 5.1",
-    "santoku >= 0.0.159-1",
-    "santoku-fs >= 0.0.13-1"
+    "santoku >= 0.0.161-1",
+    "santoku-fs >= 0.0.14-1"
   },
 
   test = {
