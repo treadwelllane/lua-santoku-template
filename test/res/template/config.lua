@@ -1,6 +1,3 @@
 return {
-  env = {
-    eruda = true,
-    coverage = true
-  }
+  title = "Hello, World!"
 }

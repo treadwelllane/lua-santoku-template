@@ -1,392 +1,242 @@
--- TODO: Consider disallowing bool + string
--- returns, and instead just return strings
--- directly. This will make formatters easier to
--- implement.
---
--- TODO: Add input validation, istemplate, etc
--- TODO: Allow line prefixes (like comments) to
--- be ignored
--- TODO: Allow specifying filter for render/copy
+local err = require("santoku.error")
+local error = err.error
+local assert = err.assert
 
--- TODO: Auto-indent lines based on parent
--- indent
--- TODO: Refactor/cleanup.
+local lua = require("santoku.lua")
+local loadstring = lua.loadstring
+local setfenv = lua.setfenv
+
+local validate = require("santoku.validate")
+local hascall = validate.hascall
+local hasindex = validate.hasindex
+local isstring = validate.isstring
+
+local inherit = require("santoku.inherit")
+local pushindex = inherit.pushindex
+
+local fs = require("santoku.fs")
+local readfile = fs.readfile
+local files = fs.files
+local extensions = fs.extensions
+
+local iter = require("santoku.iter")
+local interleave = iter.interleave
+local keys = iter.keys
+local collect = iter.collect
 
 local str = require("santoku.string")
-local tbl = require("santoku.table")
-local op = require("santoku.op")
-local check = require("santoku.check")
-local inherit = require("santoku.inherit")
-local fun = require("santoku.fun")
-local vec = require("santoku.vector")
-local gen = require("santoku.gen")
-local tup = require("santoku.tuple")
-local fs = require("santoku.fs")
-local compat = require("santoku.compat")
+local sescape = str.escape
+local scmp = str.compare
 
-local M = {}
+local arr = require("santoku.array")
+local extend = arr.extend
+local push = arr.push
+local concat = arr.concat
+local copy = arr.copy
 
-M.TEMPLATES = setmetatable({}, { __mode = "kv" })
+local sfind = string.find
+local gsub = string.gsub
+local ssub = string.sub
 
-M.MT = {
-  __call = function (_, ...)
-    return M.compile(...)
+local def_open = "<%%"
+local def_close = "%%>"
+
+local compile
+local compilefile
+
+local function compiledir (dir, open, close, parent_env, deps, showstack)
+  dir = hascall(dir) and dir or files(dir)
+  local ret = {}
+  for file in dir do
+    local template = (parent_env and parent_env.compilefile)
+      and parent_env.compilefile(file, open, close, parent_env, deps, showstack)
+      or compilefile(file, open, close, parent_env, deps, showstack)
+    local exts = extensions(file)
+    ret[exts] = ret[exts] or {}
+    ret[exts][file] = template
   end
-}
-
-M.MT_TEMPLATE = {
-  __name = "santoku_template",
-  __index = function (tmpl, k)
-    return tmpl.index[k]
-  end,
-  __call = function (tmpl, ...)
-    return tmpl:render(...)
-  end
-}
-
-M.open = "<%"
-M.close = "%>"
-M.tagclose = "%"
-
-M.STR = {}
-M.FN = {}
-
-M.istemplate = function (t)
-  return M.TEMPLATES[t] or compat.hasmeta(t, M.MT_TEMPLATE)
+  return ret
 end
 
-M.get_action = function (fp, opts)
-  local ext = fs.extension(fp)
-  if (opts.exts and not gen.vals(opts.exts):co():includes(ext)) or
-      gen.vals(tbl.get(opts, "rules", "exclude") or {}):co():find(fun.bindl(string.match, fp))
-  then
-    return "ignore"
-  elseif gen.vals(tbl.get(opts, "rules", "copy") or {}):co():find(fun.bindl(string.match, fp))
-  then
-    return "copy"
-  else
-    return "template"
-  end
-end
+local function renderer (parts, open0, close0, parent_env, deps, showstack)
 
-M.compiledir = function (parent, dir, opts)
-  if not M.istemplate(parent) then
-    opts = dir
-    dir = parent
-    parent = nil
-  end
-  opts = opts or {}
-  if opts.trim == nil then
-    opts.trim = true
-  end
-  return check:wrap(function (check)
-    local ret = {}
-    fs.files(dir)
-      :map(check)
-      :filter(function (fp)
-        return M.get_action(fp, opts) == "template"
-      end)
-      :each(function (fp)
-        local ext = fs.extension(fp)
-        local tmpl = parent
-          and check(parent:compilefile(fp, opts.config))
-          or check(M.compilefile(fp, opts.config))
-        if opts.trim then
-          fp = str.stripprefix(fp, dir)
-          fp = fp:match("^" .. str.escape(fs.pathdelim) .. "*(.*)$")
-        end
-        local name = fs.splitexts(fp).name
-        ret[ext] = ret[ext] or {}
-        ret[ext][name] = tmpl
-      end)
-    return ret
-  end)
-end
+  local deps = deps or {}
+  local showstack = showstack or { true }
+  local output = {}
+  local skipped = {}
 
-M.compilefile = function (parent, ...)
-  local args = tup(...)
-  if not M.istemplate(parent) then
-    args = tup(parent, args())
-    parent = nil
-  end
-  return check:wrap(function (check)
-    local fp = args()
-    local data = check(fs.readfile(fp))
-    if parent then
-      return check(parent:compile(data, tup.sel(2, args())))
-    else
-      return check(M.compile(data, tup.sel(2, args())))
-    end
-  end)
-end
+  return function (render_env)
 
-M.compile = function (parent, ...)
-  local args = tup(...)
-  return check:wrap(function (check)
+    local env = {}
 
-    local tmpl, config
+    local base_env = {
 
-    if not M.istemplate(parent) then
-      tmpl, config = parent, args()
-      parent = nil
-    else
-      tmpl, config = args(), parent.config
-    end
-
-    config = config or {}
-    local fenv = {}
-
-    if parent then
-      inherit.pushindex(fenv, parent.fenv)
-    else
-      inherit.pushindex(fenv, config.env or {})
-    end
-
-    local open = str.escape(config.open or M.open)
-    local close = str.escape(config.close or M.close)
-    local tagclose = str.escape(config.tagclose or M.tagclose)
-
-    -- TODO: string.len is definitely wrong since
-    -- open and close are patterns. Instead, use
-    -- (se - ss) and (ee - es).
-    local openlen = string.len(M.open)
-    local closelen = string.len(M.close)
-    local tagcloselen = string.len(M.tagclose)
-
-    local parts = vec()
-    local pos, ss, se, es, ee
-    pos = 0
-
-    local deps = vec()
-    local showstack = vec(true)
-
-    local ret = setmetatable({
-      index = {},
-      fenv = fenv,
-      source = tmpl,
-      deps = deps,
-      showstack = showstack,
-      config = config,
-      parent = parent,
-      parts = parts,
-    }, M.MT_TEMPLATE)
-
-    inherit.pushindex(ret.index, M)
-
-    inherit.pushindex(ret.index, {
-      push = function (t, tf)
-        assert(M.istemplate(t), "first argument to push must be a template")
-        t.showstack:push(not not tf) -- not not converts to boolean
-        return t
+      push = function (tf)
+        showstack[#showstack + 1] =  not not tf -- not not converts to boolean
       end,
-      pop = function (t)
-        assert(M.istemplate(t), "first argument to push must be a template")
-        showstack:pop()
-        return t
-      end,
-      showing = function (t)
-        assert(M.istemplate(t), "first argument to showing must be a template")
-        return gen.nvals(t.showstack, -1):co():find(op["not"]) ~= false
-      end,
-      compiledir = M.compiledir,
-      compilefile = function (a, b, ...)
-        if not M.istemplate(a) then
-          deps:append(a)
-        else
-          deps:append(b)
-        end
-        return M.compilefile(a, b, ...)
-      end
-    })
 
-    fenv.template = ret
-    fenv.check = check
+      pop = function ()
+        showstack[#showstack] = nil
+      end,
 
-    while true do
-      ss, se = string.find(tmpl, open, pos)
-      if not ss then
-        local after = tmpl:sub(pos + closelen - 1)
-        if string.len(after) > 0 then
-          parts:append((tup(M.STR, after)))
+      showing = function ()
+        for i = #showstack, 1, -1 do
+          if showstack[i] == false then
+            return false
+          end
         end
-        break
+        return true
+      end,
+
+      compile = function (data, open1, close1)
+        return compile(data, open1 or open0, close1 or close0, env, deps, showstack)
+      end,
+
+      compilefile = function (fp, open1, close1)
+        deps[fp] = true
+        return compilefile(fp, open1 or open0, close1 or close0, env, deps, showstack)
+      end,
+
+      compiledir = function (dir, open1, close1)
+        return compiledir(dir, open1 or open0, close1 or close0, env, deps, showstack)
+      end,
+
+      renderfile = function (fp, open1, close1)
+        deps[fp] = true
+        return compile(readfile(fp), open1 or open0, close1 or close0, env, deps, showstack)()
+      end,
+
+      readfile = function (fp)
+        deps[fp] = true
+        return readfile(fp)
+      end,
+
+    }
+
+    pushindex(env, parent_env)
+    pushindex(env, render_env)
+    pushindex(env, base_env)
+
+    local parts = copy({}, parts)
+    local showing = base_env.showing
+
+    for i = 1, #parts do
+
+      local d = parts[i]
+      local fn
+
+      if hascall(d) then
+        fn = true
+        d = setfenv(d, env)()
       else
-        es, ee = string.find(tmpl, close, se)
-        if not es then
-          check(false, table.concat({
-            "Invalid template: expecting: ",
-            M.close,
-            " at position ",
-            ss
-          }))
-        else
-          local before = tmpl:sub(pos + 1, ss - openlen + 1)
-          if string.len(before) > 0 then
-            parts:append((tup(M.STR, before)))
-          end
-          local code = tmpl:sub(se + openlen - 1, es - closelen)
-          local tag = code:match("^([%w%s_-]*)" .. tagclose)
-          if tag then
-            code = code:sub(string.len(tag) + tagcloselen + 1)
-          end
-          local ok, fn, cd = compat.load(code, fenv)
-          if not ok then
-            check(false, fn, cd)
-          elseif tag == nil or tag == "render" then
-            parts:append((tup(M.FN, fn)))
-          elseif tag == "compile" then
-            local res = tup(fn())
-            local ok = res()
-            if ok == nil then -- luacheck: ignore
-              -- do nothing
-            elseif type(ok) == "string" then
-              parts:append((tup(M.STR, res())))
-            elseif not ok then
-              check(false, tup.sel(2, res))
-            else
-              parts:append((tup(M.STR, tup.sel(2, res))))
+        fn = false
+      end
+
+      if d ~= nil then
+        assert(isstring(d))
+        if showing() then
+          local shown = output[#output]
+          output[#output + 1] = d
+          if shown and fn then
+            local ps, pe = sfind(shown, "\n[^\n]*$")
+            if ps then
+              local prefix = sescape(ssub(shown, ps, pe))
+              output[#output] = gsub(output[#output], "\n%s*", prefix)
             end
-          else
-            check(false, "Invalid tag: " .. tag)
           end
-          pos = ee
-        end
-      end
-    end
-
-    M.TEMPLATES[ret] = true
-    return ret
-
-  end)
-end
-
-M.renderfile = function (fp, config)
-  return check:wrap(function (check)
-    local tpl = check(M.compilefile(fp, config))
-    return check(tpl:render())
-  end)
-end
-
-M._should_insert = function (ok)
-  return ok == true or type(ok) == "string"
-end
-
-M._get_prefix = function (data)
-
-  if not data then
-    return
-  end
-
-  local typ, data = data()
-
-  if typ ~= M.STR then
-    return
-  end
-
-  return data:match("\n([^\n]+)$") or data:match("^([^\n]+)$")
-
-end
-
-M._append_prefix = function (left, s)
-
-  local prefix = M._get_prefix(left)
-
-  if not prefix then
-    return s
-  end
-
-  return (s:gsub("\n", "\n" .. prefix))
-
-end
-
-M._insert = function (output, left, s, opts)
-
-  if s == nil then
-    return true
-  elseif type(s) ~= "string" then
-    return false, "expected string or nil: got: " .. type(s)
-  end
-
-  if not opts or opts.prefix ~= false then
-    output:append(M._append_prefix(left, s))
-    return true
-  else
-    output:append(s)
-    return true
-  end
-
-end
-
-M.render = function (tmpl, env)
-  assert(M.istemplate(tmpl))
-  return check:wrap(function (check)
-
-    tmpl.fenv.check = check
-
-    local parts = tmpl.parts
-    local output = vec()
-
-    inherit.pushindex(tmpl.fenv, env or {})
-
-    for i, part in ipairs(parts) do
-      local typ, data = part()
-      if typ == M.STR then
-        if tmpl:showing() then
-          check(M._insert(output, nil, tup.sel(2, part())))
-        end
-      elseif typ == M.FN then
-        local res = tup(data())
-        if not M._should_insert(res()) then
-          local lpat = "\n[^%S\n]*$"
-          local rpat = "^[^%S\n]*\n[^%S\n]*"
-          local left = parts:get(i - 1) or tup()
-          local right = parts:get(i + 1) or tup()
-          local ltyp, ldata = left()
-          local rtyp, rdata = right()
-          local lmatch = ltyp == M.STR and ldata and ldata:match(lpat)
-          local rmatch = rtyp == M.STR and rdata and rdata:match(rpat)
-          if lmatch and rmatch then
-            parts:set(i - 1, (tup(M.STR, (ldata:gsub(lpat, "")))))
-            parts:set(i + 1, (tup(M.STR, (rdata:gsub(rpat, "")))))
-          end
-        end
-        if tmpl:showing() then
-          check(M._insert(output, parts:get(i - 1) or tup(), res()))
         end
       else
-        check:error("this is a bug: chunk has an undefined type")
+        skipped[#skipped + 1] = #output
+      end
+
+    end
+
+    if #output > 1 then
+      output[#output] = gsub(output[#output], "\n%s*$", "")
+    end
+
+    for i = 1, #skipped do
+      local oi = skipped[i]
+      if output[oi] and output[oi + 1] then
+        local ls = sfind(output[oi], "\n%s*$")
+        local rs, re = sfind(output[oi + 1], "^%s*\n")
+        if ls and rs then
+          output[oi] = ssub(output[oi], 1, ls - 1)
+          output[oi + 1] = ssub(output[oi + 1], re)
+        end
       end
     end
 
-    if tmpl.parent and output.n > 0 then
-      local last = output[output.n]
-      local trailing = last:match("\n%s*$")
-      if trailing then
-        output[output.n] = last:sub(1, string.len(last) - string.len(trailing))
+    return concat(output), deps
+
+  end
+
+end
+
+compile = function (data, open, close, parent_env, deps, showstack)
+
+  local open = open or def_open
+  local close = close or def_close
+
+  local parts = {}
+  local pos = 1
+  local ss, se, es, ee
+
+  while true do
+    ss, se = sfind(data, open, pos)
+    if not ss then
+      local after = ssub(data, pos)
+      if #after > 0 then
+        parts[#parts + 1] = after
+      end
+      break
+    else
+      es, ee = sfind(data, close, se + 1)
+      if not es then
+        error("Invalid template: unexpected character", ss)
+      else
+        local before = ssub(data, pos, ss - 1)
+        if #before > 0 then
+          parts[#parts + 1] = before
+        end
+        local code = ssub(data, se + 1, es - 1)
+        parts[#parts + 1] = loadstring(code, parent_env)
+        pos = ee + 1
       end
     end
+  end
 
-    return output:concat()
+  return renderer(parts, open, close, parent_env, deps, showstack)
 
-  end)
 end
 
-M.write_deps = function (tmpl, destfile, depsfile, extra)
-  assert(M.istemplate(tmpl))
-  assert(compat.istype.string(destfile))
-  assert(compat.istype.string(depsfile))
-  extra = extra or {}
-  assert(compat.istype.table(extra))
-  return check:wrap(function (check)
-    local out = gen.chain(
-        gen.pack(destfile, ": "),
-        gen.ivals(extra):interleave(" "),
-        gen.pack(" "),
-        gen.ivals(tmpl.deps):interleave(" "))
-      :vec()
-      :concat()
-    check(fs.writefile(depsfile, out))
-  end)
+compilefile = function (fp, open, close, parent_env, deps, showstack)
+  return compile(readfile(fp), open, close, parent_env, deps, showstack)
 end
 
-return setmetatable(M, M.MT)
+local function render (data, env, open, close, deps, showstack)
+  return compile(data, open, close, env, deps, showstack)()
+end
+
+local function renderfile (fp, env, open, close, deps, showstack)
+  return compilefile(fp, open, close, env, deps, showstack)()
+end
+
+local function serialize_deps (source, dest, deps)
+  assert(isstring(source))
+  assert(isstring(dest))
+  assert(hasindex(deps))
+  local out = {}
+  push(out, source, ": ")
+  extend(out, collect(interleave(" ", keys(deps))), scmp)
+  push(out, "\n", dest, ": ", source)
+  return concat(out)
+end
+
+return {
+  compile = compile,
+  compilefile = compilefile,
+  render = render,
+  renderfile = renderfile,
+  serialize_deps = serialize_deps
+}
