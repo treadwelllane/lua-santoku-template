@@ -161,3 +161,8 @@ test("should prepend leading characters to new lines", function ()
     #  %e
     #  %f]]))
 end)
+
+test("file chunks share environment", function ()
+  local render = compile("<% a = '1' %><% return a %>")
+  assert(eq("1", render()))
+end)

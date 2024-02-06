@@ -26,7 +26,6 @@ local collect = iter.collect
 
 local str = require("santoku.string")
 local sescape = str.escape
-local scmp = str.compare
 
 local arr = require("santoku.array")
 local extend = arr.extend
@@ -228,7 +227,7 @@ local function serialize_deps (source, dest, deps)
   assert(hasindex(deps))
   local out = {}
   push(out, source, ": ")
-  extend(out, collect(interleave(" ", keys(deps))), scmp)
+  extend(out, collect(interleave(" ", keys(deps))))
   push(out, "\n", dest, ": ", source)
   return concat(out)
 end
