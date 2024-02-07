@@ -136,7 +136,7 @@ local function renderer (parts, open0, close0, parent_env, deps, showstack)
         if showing() then
           local shown = output[#output]
           output[#output + 1] = d
-          if shown and fn and prefix_flag then
+          if shown and fn and prefix_flag ~= false then
             local ps, pe = sfind(shown, "\n[^\n]*$")
             if ps then
               local prefix = sescape(ssub(shown, ps, pe))
