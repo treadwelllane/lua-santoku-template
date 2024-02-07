@@ -122,11 +122,11 @@ local function renderer (parts, open0, close0, parent_env, deps, showstack)
     for i = 1, #parts do
 
       local d = parts[i]
-      local fn
+      local fn, prefix_flag
 
       if hascall(d) then
         fn = true
-        d = setfenv(d, env)()
+        d, prefix_flag = setfenv(d, env)()
       else
         fn = false
       end
@@ -136,7 +136,7 @@ local function renderer (parts, open0, close0, parent_env, deps, showstack)
         if showing() then
           local shown = output[#output]
           output[#output + 1] = d
-          if shown and fn then
+          if shown and fn and prefix_flag then
             local ps, pe = sfind(shown, "\n[^\n]*$")
             if ps then
               local prefix = sescape(ssub(shown, ps, pe))
