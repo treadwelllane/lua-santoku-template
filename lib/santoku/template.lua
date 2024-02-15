@@ -18,6 +18,8 @@ local fs = require("santoku.fs")
 local readfile = fs.readfile
 local files = fs.files
 local extensions = fs.extensions
+local basename = fs.basename
+local stripextensions = fs.stripextensions
 
 local iter = require("santoku.iter")
 local interleave = iter.interleave
@@ -50,9 +52,10 @@ local function compiledir (dir, open, close, parent_env, deps, showstack)
     local template = (parent_env and parent_env.compilefile)
       and parent_env.compilefile(file, open, close, parent_env, deps, showstack)
       or compilefile(file, open, close, parent_env, deps, showstack)
-    local exts = extensions(file)
+    local exts = gsub(extensions(file), "^%.", "")
+    local name = stripextensions(basename(file))
     ret[exts] = ret[exts] or {}
-    ret[exts][file] = template
+    ret[exts][name] = template
   end
   return ret
 end
