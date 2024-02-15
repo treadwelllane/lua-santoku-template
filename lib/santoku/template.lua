@@ -58,13 +58,12 @@ local function compiledir (dir, open, close, parent_env, deps, showstack)
 end
 
 local function renderer (parts, open0, close0, parent_env, deps, showstack)
-
-  local deps = deps or {}
-  local showstack = showstack or { true }
-  local output = {}
-  local skipped = {}
-
   return function (render_env)
+
+    local deps = deps or {}
+    local showstack = showstack or { true }
+    local output = {}
+    local skipped = {}
 
     local env = {}
 
@@ -169,7 +168,6 @@ local function renderer (parts, open0, close0, parent_env, deps, showstack)
     return concat(output), deps
 
   end
-
 end
 
 compile = function (data, open, close, parent_env, deps, showstack)
