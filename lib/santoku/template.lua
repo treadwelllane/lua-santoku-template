@@ -11,8 +11,8 @@ local hascall = validate.hascall
 local hasindex = validate.hasindex
 local isstring = validate.isstring
 
+local tbl = require("santoku.table")
 local inherit = require("santoku.inherit")
-local pushindex = inherit.pushindex
 
 local fs = require("santoku.fs")
 local readfile = fs.readfile
@@ -102,9 +102,11 @@ local function renderer (parts, open0, close0, parent_env, deps, showstack)
         return compiledir(dir, open1 or open0, close1 or close0, env, deps, showstack)
       end,
 
-      renderfile = function (fp, open1, close1)
+      renderfile = function (fp, env0, open1, close1)
+        env0 = env0 or {}
+        tbl.merge(env0, env)
         deps[fp] = true
-        return compile(readfile(fp), open1 or open0, close1 or close0, env, deps, showstack)()
+        return compile(readfile(fp), open1 or open0, close1 or close0, env0, deps, showstack)()
       end,
 
       readfile = function (fp)
@@ -114,9 +116,8 @@ local function renderer (parts, open0, close0, parent_env, deps, showstack)
 
     }
 
-    pushindex(env, parent_env)
-    pushindex(env, render_env)
-    pushindex(env, base_env)
+    tbl.merge(env, render_env or {}, parent_env or {}, base_env or {})
+    inherit.pushindex(env, _G)
 
     local parts = copy({}, parts)
     local showing = base_env.showing
