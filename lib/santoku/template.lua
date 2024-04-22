@@ -103,10 +103,8 @@ local function renderer (parts, open0, close0, parent_env, deps, showstack)
       end,
 
       renderfile = function (fp, env0, open1, close1)
-        env0 = env0 or {}
-        tbl.merge(env0, env)
         deps[fp] = true
-        return compile(readfile(fp), open1 or open0, close1 or close0, env0, deps, showstack)()
+        return compile(readfile(fp), open1 or open0, close1 or close0, env0, deps, showstack)(env)
       end,
 
       readfile = function (fp)
@@ -117,7 +115,7 @@ local function renderer (parts, open0, close0, parent_env, deps, showstack)
     }
 
     tbl.merge(env, render_env or {}, parent_env or {}, base_env or {})
-    inherit.pushindex(env, _G)
+    inherit.pushindex(env, _G, true)
 
     local parts = copy({}, parts)
     local showing = base_env.showing
