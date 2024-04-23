@@ -45,13 +45,11 @@ local def_close = "%%>"
 local compile
 local compilefile
 
-local function compiledir (dir, open, close, parent_env, deps, showstack)
+local function compiledir (dir, open, close, deps, showstack, parent_env)
   dir = hascall(dir) and dir or files(dir)
   local ret = {}
   for file in dir do
-    local template = (parent_env and parent_env.compilefile)
-      and parent_env.compilefile(file, open, close, parent_env, deps, showstack)
-      or compilefile(file, open, close, parent_env, deps, showstack)
+    local template = compilefile(file, open, close, deps, showstack, parent_env)
     local exts = gsub(extensions(file), "^%.", "")
     local name = stripextensions(basename(file))
     ret[exts] = ret[exts] or {}
@@ -60,8 +58,8 @@ local function compiledir (dir, open, close, parent_env, deps, showstack)
   return ret
 end
 
-local function renderer (parts, open0, close0, parent_env, deps, showstack)
-  return function (render_env)
+local function renderer (parts, open0, close0, deps, showstack, parent_env)
+  return function (render_env, global)
 
     local deps = deps or {}
     local showstack = showstack or { true }
@@ -90,21 +88,21 @@ local function renderer (parts, open0, close0, parent_env, deps, showstack)
       end,
 
       compile = function (data, open1, close1)
-        return compile(data, open1 or open0, close1 or close0, env, deps, showstack)
+        return compile(data, open1 or open0, close1 or close0, deps, showstack, env)
       end,
 
       compilefile = function (fp, open1, close1)
         deps[fp] = true
-        return compilefile(fp, open1 or open0, close1 or close0, env, deps, showstack)
+        return compilefile(fp, open1 or open0, close1 or close0, deps, showstack, env)
       end,
 
       compiledir = function (dir, open1, close1)
-        return compiledir(dir, open1 or open0, close1 or close0, env, deps, showstack)
+        return compiledir(dir, open1 or open0, close1 or close0, deps, showstack, env)
       end,
 
-      renderfile = function (fp, env0, open1, close1)
+      renderfile = function (fp, env1, global1, open1, close1)
         deps[fp] = true
-        return compile(readfile(fp), open1 or open0, close1 or close0, env0, deps, showstack)(env)
+        return compile(readfile(fp), open1 or open0, close1 or close0, deps, showstack, env)(env1, global1 or global)
       end,
 
       readfile = function (fp)
@@ -114,8 +112,8 @@ local function renderer (parts, open0, close0, parent_env, deps, showstack)
 
     }
 
-    tbl.merge(env, render_env or {}, parent_env or {}, base_env or {})
-    inherit.pushindex(env, _G, true)
+    tbl.merge(env, render_env or {}, base_env or {}, parent_env or {})
+    inherit.pushindex(env, global)
 
     local parts = copy({}, parts)
     local showing = base_env.showing
@@ -172,7 +170,7 @@ local function renderer (parts, open0, close0, parent_env, deps, showstack)
   end
 end
 
-compile = function (data, open, close, parent_env, deps, showstack)
+compile = function (data, open, close, deps, showstack, parent_env)
 
   local open = open or def_open
   local close = close or def_close
@@ -199,26 +197,26 @@ compile = function (data, open, close, parent_env, deps, showstack)
           parts[#parts + 1] = before
         end
         local code = ssub(data, se + 1, es - 1)
-        parts[#parts + 1] = loadstring(code, parent_env)
+        parts[#parts + 1] = loadstring(code, nil)
         pos = ee + 1
       end
     end
   end
 
-  return renderer(parts, open, close, parent_env, deps, showstack)
+  return renderer(parts, open, close, deps, showstack, parent_env)
 
 end
 
-compilefile = function (fp, open, close, parent_env, deps, showstack)
-  return compile(readfile(fp), open, close, parent_env, deps, showstack)
+compilefile = function (fp, open, close, deps, showstack, parent_env)
+  return compile(readfile(fp), open, close, deps, showstack, parent_env)
 end
 
-local function render (data, env, open, close, deps, showstack)
-  return compile(data, open, close, env, deps, showstack)()
+local function render (data, env, global, open, close, deps, showstack, parent_env)
+  return compile(data, open, close, deps, showstack, parent_env)(env, global)
 end
 
-local function renderfile (fp, env, open, close, deps, showstack)
-  return compilefile(fp, open, close, env, deps, showstack)()
+local function renderfile (fp, env, global, open, close, deps, showstack, parent_env)
+  return compilefile(fp, open, close, deps, showstack, parent_env)(env, global)
 end
 
 local function serialize_deps (source, dest, deps)

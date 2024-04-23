@@ -7,16 +7,12 @@ local assert = err.assert
 local validate = require("santoku.validate")
 local eq = validate.isequal
 
-local inherit = require("santoku.inherit")
-local pushindex = inherit.pushindex
-
 local tbl = require("santoku.table")
 local teq = tbl.equals
 
 local template = require("santoku.template")
 local compile = template.compile
 local compilefile = template.compilefile
--- local serialize_deps = template.serialize_deps
 
 local fs = require("santoku.fs")
 local runfile = fs.runfile
@@ -73,9 +69,6 @@ test("should support multiple templates", function ()
     ["test/res/template/name.html"] = true,
   }))
   assert(eq(str, "<title>Hello, World! Hello, World! 123</title>"))
-  -- luacheck: push ignore
-  -- assert(eq(serialize_deps("source.txt", "source.txt.d", deps), "source.txt: test/res/template/title.html test/res/template/titles.html test/res/template/name.html\nsource.txt.d: source.txt"))
-  -- luacheck: pop
 end)
 
 test("should support multiple templates (again)", function ()
@@ -101,7 +94,7 @@ test("should handle trailing characters", function ()
         end, pairs(redirects)))) %>>
     </template>
   ]])
-  local str = render(pushindex({ redirects = { [403] = "/login" } }, _G))
+  local str = render({ redirects = { [403] = "/login" } }, _G)
   assert(eq(str, [[
     <template
       data-api="/api/ping"
