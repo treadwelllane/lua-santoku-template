@@ -110,9 +110,9 @@ The `showing()` function checks if content should be rendered:
 
 ```html
 <% push(condition) %>
-  <% if showing() then %>
-    This is shown when condition is true
-  <% end %>
+  <% if showing() then
+    return "This is shown when condition is true"
+  end %>
 <% pop() %>
 ```
 
