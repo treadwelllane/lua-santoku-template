@@ -189,10 +189,26 @@ local function serialize_deps (source, dest, deps)
   return arr.concat(out)
 end
 
+local function deserialize_deps (data)
+  err.assert(vdt.isstring(data))
+  local deps = {}
+  local first_line = str.match(data, "^[^\n]+")
+  if first_line then
+    local after_colon = str.match(first_line, ":%s*(.*)$")
+    if after_colon then
+      for dep in str.gmatch(after_colon, "%S+") do
+        deps[dep] = true
+      end
+    end
+  end
+  return deps
+end
+
 return {
   compile = compile,
   compilefile = compilefile,
   render = render,
   renderfile = renderfile,
-  serialize_deps = serialize_deps
+  serialize_deps = serialize_deps,
+  deserialize_deps = deserialize_deps
 }
