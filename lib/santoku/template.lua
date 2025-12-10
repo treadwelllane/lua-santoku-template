@@ -3,11 +3,12 @@ local lua = require("santoku.lua")
 local lpeg = require("lpeg")
 local vdt = require("santoku.validate")
 local tbl = require("santoku.table")
+local tkeys = tbl.keys
 local inherit = require("santoku.inherit")
 local fs = require("santoku.fs")
-local iter = require("santoku.iter")
 local str = require("santoku.string")
 local arr = require("santoku.array")
+local aspread = arr.spread
 
 local P, C, Ct, Cp = lpeg.P, lpeg.C, lpeg.Ct, lpeg.Cp
 
@@ -184,7 +185,7 @@ local function serialize_deps (source, dest, deps)
   err.assert(vdt.hasindex(deps))
   local out = {}
   arr.push(out, source, ": ")
-  arr.extend(out, iter.collect(iter.interleave(" ", iter.keys(deps))))
+  arr.push(out, aspread(arr.interleave(tkeys(deps), " ")))
   arr.push(out, "\n", dest, ": ", source)
   return arr.concat(out)
 end

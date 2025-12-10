@@ -83,15 +83,12 @@ test("should handle trailing characters", function ()
     <template
       data-api="/api/ping"
       data-method="get"
-      <% local iter = require("santoku.iter")
-        local pairs = iter.pairs
-        local map = iter.map
-        local collect = iter.collect
-        local concat = table.concat
+      <% local tbl = require("santoku.table")
+        local arr = require("santoku.array")
         local format = string.format
-        return concat(collect(map(function (status, redirect)
-          return format("data-handler-%d=\"redirect:%s\"", status, redirect)
-        end, pairs(redirects)))) %>>
+        return arr.concat(arr.map(tbl.entries(redirects), function (e)
+          return format("data-handler-%d=\"redirect:%s\"", e[1], e[2])
+        end)) %>>
     </template>
   ]])
   local str = render({ redirects = { [403] = "/login" } }, _G)
