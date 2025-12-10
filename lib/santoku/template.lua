@@ -185,7 +185,7 @@ local function serialize_deps (source, dest, deps)
   err.assert(vdt.hasindex(deps))
   local out = {}
   arr.push(out, source, ": ")
-  arr.push(out, aspread(arr.interleave(tkeys(deps), " ")))
+  arr.push(out, aspread(arr.interleaved(tkeys(deps), " ")))
   arr.push(out, "\n", dest, ": ", source)
   return arr.concat(out)
 end
