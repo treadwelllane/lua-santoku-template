@@ -34,6 +34,10 @@ local function compile (data)
     inherit.pushindex(env, global)
     local output = {}
     local skipped = {}
+    local _showing = { true }
+    env.push = function (cond) _showing[#_showing + 1] = _showing[#_showing] and cond and true or false end
+    env.pop = function () _showing[#_showing] = nil end
+    env.showing = function () return _showing[#_showing] end
     for i = 1, #parts do
       local d = parts[i]
       if vdt.hascall(d) then
@@ -41,11 +45,13 @@ local function compile (data)
         env._prefix = prev and str.match(prev, "\n([ \t]*)$") or ""
         d = lua.setfenv(d, env)()
       end
-      if d ~= nil then
-        err.assert(vdt.isstring(d))
-        output[#output + 1] = d
-      else
-        skipped[#skipped + 1] = #output
+      if _showing[#_showing] then
+        if d ~= nil then
+          err.assert(vdt.isstring(d))
+          output[#output + 1] = d
+        else
+          skipped[#skipped + 1] = #output
+        end
       end
     end
     if #output > 1 then
