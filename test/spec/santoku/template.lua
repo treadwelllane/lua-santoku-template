@@ -78,7 +78,7 @@ end)
 
 test("_prefix is available", function ()
   local render = compile("    <% return _prefix %>")
-  assert(eq("        ", render()))
+  assert(eq("    ", render()))
 end)
 
 test("_prefix reflects indentation", function ()
