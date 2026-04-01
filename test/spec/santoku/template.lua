@@ -93,6 +93,6 @@ end)
 
 test("_prefix used for indentation", function ()
   local str = require("santoku.string")
-  local render = compile("  <% return str.gsub('a\\nb\\nc', '\\n', '\\n' .. _prefix) %>")
-  assert(eq("  a\n  b\n  c", render({ str = str })))
+  local render = compile("start\n  <% return str.gsub('a\\nb\\nc', '\\n', '\\n' .. _prefix) %>")
+  assert(eq("start\n  a\n  b\n  c", render({ str = str })))
 end)
