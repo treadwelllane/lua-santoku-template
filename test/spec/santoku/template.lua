@@ -7,24 +7,14 @@ local assert = err.assert
 local validate = require("santoku.validate")
 local eq = validate.isequal
 
-local tbl = require("santoku.table")
-local teq = tbl.equals
-
 local template = require("santoku.template")
 local compile = template.compile
 local compilefile = template.compilefile
 
 local fs = require("santoku.fs")
-local runfile = fs.runfile
 
 test("should compile a template string", function ()
   local render = compile("<title><% return title %></title>")
-  local str = render({ title = "Hello, World!" })
-  assert(eq(str, "<title>Hello, World!</title>"))
-end)
-
-test("should allow custom delimiters", function ()
-  local render = compile("<title>{{ return title }}</title>", "{{", "}}")
   local str = render({ title = "Hello, World!" })
   assert(eq(str, "<title>Hello, World!</title>"))
 end)
@@ -33,49 +23,6 @@ test("should handle multiple replacements", function ()
   local render = compile("<title><% return title %> <% return title %></title>")
   local str = render({ title = "Hello, World!" })
   assert(eq(str, "<title>Hello, World! Hello, World!</title>"))
-end)
-
-test("should handle multiple replacements", function ()
-  local render = compile("<title><% return renderfile('test/res/template/title.html') %></title>") -- luacheck: ignore
-  local str, deps = render({ title = "Hello, World!" })
-  assert(teq(deps, { ["test/res/template/title.html"] = true }))
-  assert(eq(str, "<title>Hello, World!</title>"))
-end)
-
-test("should support sharing fenv to child templates", function ()
-  local render = compile("<% title = 'Hello, World!' %><title><% return renderfile('test/res/template/title.html') %></title>") -- luacheck: ignore
-  local str = render({ title = "Hello, World!" })
-  assert(eq(str, "<title>Hello, World!</title>"))
-end)
-
-test("should handle whitespace between blocks", function ()
-  local render = compile("<title><% return renderfile('test/res/template/title.html') %> <% return renderfile('test/res/template/name.html') %></title>") -- luacheck: ignore
-  local str = render({ title = "Hello, World!", name = "123" })
-  assert(eq(str, "<title>Hello, World! 123</title>"))
-end)
-
-test("should support multiple nesting levels ", function ()
-  local render = compile("<title><% return renderfile('test/res/template/titles.html') %></title>") -- luacheck: ignore
-  local str = render({ title = "Hello, World!", name = "123" })
-  assert(eq(str, "<title>Hello, World! 123</title>"))
-end)
-
-test("should support multiple templates", function ()
-  local render = compile("<% a, b = compilefile('test/res/template/title.html'), compilefile('test/res/template/titles.html') %><title><% return a() %> <% return b() %></title>") -- luacheck: ignore
-  local str, deps = render({ title = "Hello, World!", name = "123" })
-  assert(teq(deps, {
-    ["test/res/template/title.html"] = true,
-    ["test/res/template/titles.html"] = true,
-    ["test/res/template/name.html"] = true,
-  }))
-  assert(eq(str, "<title>Hello, World! Hello, World! 123</title>"))
-end)
-
-test("should support multiple templates (again)", function ()
-  local env = runfile("test/res/template/config.lua")
-  local render = compilefile("test/res/template/index.html")
-  local str = render(env)
-  assert(eq(str, "Hello, World!"))
 end)
 
 test("should handle trailing characters", function ()
@@ -100,66 +47,46 @@ test("should handle trailing characters", function ()
     </template>]]))
 end)
 
-test("should support show/hide", function ()
-  local render = compile([[
-    One
-    <% push(false) -- true, false %>
-    Two
-    <% pop() push(true) -- true, true %>
-    Three
-    <% push(false) -- true, true, false %>
-    Four
-    <% pop() -- true, true %>
-    Five
-    <% pop() -- true %>
-    Six
-    <% push(false) -- true, false %>
-    Seven
-    <% push(true) -- true, false, true %>
-    Eight
-    <% push(true) -- true, false, true, true %>
-    Nine
-    <% pop() -- true, false, true %>
-    Ten
-    <% pop() -- true, false %>
-    Eleven
-    <% pop() -- true %>
-    Twelve
-  ]])
-  local str = render()
-  assert(eq(str, [[
-    One
-    Three
-    Five
-    Six
-    Twelve]]))
-end)
-
-test("should prepend leading characters to new lines", function ()
-  local render = compile([[
-    start
-    #  <% return "a\nb\nc" %>
-    #  <% return "%%d\n%e\n%f" %>
-  ]])
-  local str = render()
-  assert(eq(str, [[
-    start
-    #  a
-    #  b
-    #  c
-    #  %%d
-    #  %e
-    #  %f]]))
-end)
-
 test("file chunks share environment", function ()
   local render = compile("<% a = '1' %><% return a %>")
   assert(eq("1", render()))
 end)
 
-test("render compiled templated multiple times", function ()
+test("render compiled template multiple times", function ()
   local t = compile("<% return 'a' %>")
   assert(eq("a", t()))
   assert(eq("a", t()))
   assert(eq("a", t()))
+end)
+
+test("nil blocks collapse surrounding blank lines", function ()
+  local render = compile("one\n<% %>\ntwo")
+  assert(eq("one\ntwo", render()))
+end)
+
+test("readfile provided via env", function ()
+  local render = compile("<% return readfile('test/res/template/title.html') %>")
+  local str = render({ readfile = fs.readfile, title = "Hello, World!" })
+  assert(eq(str, "<% return title %>\n"))
+end)
+
+test("compilefile works", function ()
+  local render = compilefile("test/res/template/title.html")
+  local str = render({ title = "Hello, World!" })
+  assert(eq(str, "Hello, World!"))
+end)
+
+test("_prefix is available", function ()
+  local render = compile("    <% return _prefix %>")
+  assert(eq("    ", render()))
+end)
+
+test("_prefix reflects indentation", function ()
+  local render = compile("line\n      <% return _prefix %>")
+  assert(eq("line\n      ", render()))
+end)
+
+test("_prefix is empty for inline blocks", function ()
+  local render = compile("text <% return _prefix %>")
+  assert(eq("text ", render()))
 end)
