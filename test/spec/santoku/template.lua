@@ -78,15 +78,21 @@ end)
 
 test("_prefix is available", function ()
   local render = compile("    <% return _prefix %>")
-  assert(eq("    ", render()))
+  assert(eq("        ", render()))
 end)
 
 test("_prefix reflects indentation", function ()
   local render = compile("line\n      <% return _prefix %>")
-  assert(eq("line\n      ", render()))
+  assert(eq("line\n            ", render()))
 end)
 
 test("_prefix is empty for inline blocks", function ()
   local render = compile("text <% return _prefix %>")
   assert(eq("text ", render()))
+end)
+
+test("_prefix used for indentation", function ()
+  local str = require("santoku.string")
+  local render = compile("  <% return str.gsub('a\\nb\\nc', '\\n', '\\n' .. _prefix) %>")
+  assert(eq("  a\n  b\n  c", render({ str = str })))
 end)
