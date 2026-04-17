@@ -151,8 +151,8 @@ print(template.serialize_deps("main.html", "output.html", deps))
 
 ## Related Modules
 
-- [lua-santoku-make](https://github.com/treadwelllane/lua-santoku-make) - Build system using this template engine
-- [lua-santoku-cli](https://github.com/treadwelllane/lua-santoku-cli) - Command line tools for template processing
+- [lua-santoku-make](https://github.com/birchpointswe/lua-santoku-make) - Build system using this template engine
+- [lua-santoku-cli](https://github.com/birchpointswe/lua-santoku-cli) - Command line tools for template processing
 
 ## License
 
