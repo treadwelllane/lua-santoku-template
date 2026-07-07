@@ -1,158 +1,139 @@
-# lua-santoku-template
+# santoku-template
 
-Lua template engine for text generation and file processing.
+A Lua template engine: text with embedded `<% ... %>` Lua blocks compiled to a
+render function. Built on base `santoku` (errors, validation, string, table,
+array, inherit), `santoku-fs` for file reading, and `lpeg` for the parser. See
+[../lua-santoku/README.md](../lua-santoku/README.md) and
+[../lua-santoku-fs/README.md](../lua-santoku-fs/README.md) for those surfaces, and
+the [lpeg manual](http://www.inf.puc-rio.br/~roberto/lpeg/) for the grammar layer.
 
-## API Reference
+This README is a usage guide, not an API reference. The tests are the spec:
+`test/spec/santoku/template.lua` exercises the core surface and
+`test/spec/santoku/template_deps.lua` covers includes and dependency
+serialization. Read those for the exhaustive behavior; read this for how the
+pieces fit.
 
-### Core Functions
+## Model
 
-| Function | Arguments | Returns | Description |
-|----------|-----------|---------|-------------|
-| `compile` | `data, [open], [close], [deps], [showstack], [parent_env]` | `function` | Compiles template string to render function |
-| `compilefile` | `filepath, [open], [close], [deps], [showstack], [parent_env]` | `function` | Compiles template file to render function |
-| `render` | `data, env, [global], [open], [close], [deps], [showstack], [parent_env]` | `string, deps` | Renders template string directly |
-| `renderfile` | `filepath, env, [global], [open], [close], [deps], [showstack], [parent_env]` | `string, deps` | Renders template file directly |
-| `serialize_deps` | `source, dest, deps` | `string` | Serializes dependencies in Makefile format |
+A template is text interleaved with `<% ... %>` blocks. Each block is Lua source,
+compiled with `santoku.lua.loadstring` at compile time (a syntax error in a block
+raises with the block's position). Text outside the blocks is emitted verbatim.
 
-#### Arguments
-
-- `data` - Template string to compile/render
-- `filepath` - Path to template file
-- `env` - Environment table with template variables
-- `global` - Global environment table (defaults to `_G`)
-- `open`, `close` - Custom delimiters (defaults to `<%`, `%>`)
-- `deps` - Dependency tracking table
-- `showstack` - Stack for conditional rendering
-- `parent_env` - Parent template environment
-
-#### Returns
-
-- Compiled functions return a render function that takes `(env, [global])` and returns `string, deps`
-- Render functions return the rendered string and dependency table
-
-### Template Environment Functions
-
-These functions are available within templates:
-
-| Function | Arguments | Description |
-|----------|-----------|-------------|
-| `push` | `condition` | Pushes a show/hide condition onto the stack |
-| `pop` | `()` | Pops the top condition from the stack |
-| `showing` | `()` | Returns true if content should be shown |
-| `compile` | `data, [open], [close]` | Compiles a template string in current context |
-| `compilefile` | `filepath, [open], [close]` | Compiles a template file in current context |
-| `renderfile` | `filepath, [env], [global], [open], [close]` | Renders a template file in current context |
-| `readfile` | `filepath` | Reads a file (with dependency tracking) |
-
-## Template Syntax
-
-Templates embed Lua code using delimiters (default `<%` and `%>`):
-
-### Basic Syntax
-
-```html
-<!-- Output a value -->
-<title><% return title %></title>
-
-<!-- Execute code -->
-<% local x = 10 %>
-
-<!-- Multiple statements -->
-<%
-  local fs = require("santoku.fs")
-  local content = fs.readfile("data.txt")
-%>
-
-<!-- Output result -->
-<% return content %>
-```
-
-### Nested Templates
-
-Templates can include other templates using `renderfile()`:
-
-```html
-<html>
-  <head><% return renderfile("header.html") %></head>
-  <body><% return renderfile("content.html") %></body>
-</html>
-```
-
-The parent template's environment is shared with nested templates:
-
-```html
-<!-- main.html -->
-<% title = "My Page" %>
-<% return renderfile("header.html") %>
-
-<!-- header.html -->
-<title><% return title %></title>
-```
-
-### Conditional Rendering
-
-Use `push()`, `pop()`, and `showing()` for conditional content:
-
-```html
-<% push(show_debug) %>
-  Debug info: <% return debug_message %>
-<% pop() %>
-
-<% push(user and user.admin) %>
-  Admin panel link
-  <% push(user.super_admin) %>
-    Super admin controls
-  <% pop() %>
-<% pop() %>
-```
-
-The `showing()` function checks if content should be rendered:
-
-```html
-<% push(condition) %>
-  <% if showing() then
-    return "This is shown when condition is true"
-  end %>
-<% pop() %>
-```
-
-### Automatic Indentation
-
-Multi-line output preserves the indentation of the template location:
-
-```html
-<div>
-  <% return "line1\nline2\nline3" %>
-</div>
-```
-
-Results in:
-```html
-<div>
-  line1
-  line2
-  line3
-</div>
-```
-
-### Dependency Tracking
-
-Templates automatically track file dependencies when using `readfile()` or `renderfile()`:
+`compile(data)` parses once and returns `render(env, global)`. Calling the render
+function runs each block with its own environment: a fresh table seeded from
+`env`, with `global` (often `_G`) on its `__index` chain via `santoku.inherit`. A
+block that `return`s a string contributes that string to the output; a block that
+returns nothing (statements only) contributes nothing but its side effects on the
+shared environment persist to later blocks in the same render.
 
 ```lua
-local result, deps = template.renderfile("main.html", { title = "Test" })
--- deps = { ["header.html"] = true, ["content.html"] = true }
+local template = require("santoku.template")
 
--- Serialize for Makefiles
-print(template.serialize_deps("main.html", "output.html", deps))
--- Output: main.html: header.html content.html
---         output.html: main.html
+local render = template.compile("<title><% return title %></title>")
+render({ title = "Hello, World!" })        -- "<title>Hello, World!</title>"
+
+-- statements run for effect; state carries to later blocks in the same render
+template.render("<% a = '1' %><% return a %>")   -- "1"
 ```
 
-## Related Modules
+`render(data, env, global)` and `renderfile(fp, env, global)` are compile-then-call
+shortcuts. `compilefile(fp)` reads the file through `santoku.fs.readfile` and
+compiles its contents.
 
-- [lua-santoku-make](https://github.com/birchpointswe/lua-santoku-make) - Build system using this template engine
-- [lua-santoku-cli](https://github.com/birchpointswe/lua-santoku-cli) - Command line tools for template processing
+## In-block environment
+
+Each block runs with these names available beyond `env`/`global`:
+
+- `_prefix`: the whitespace indentation of the current block's line, captured from
+  the text immediately before it. Use it to re-indent multi-line output so nested
+  lines line up with the block.
+- `push(cond)` / `pop()` / `showing()`: a conditional-output stack. `push` ANDs
+  `cond` with the current state and pushes it; while the top is false, returned
+  strings are dropped; `pop` restores the previous state. `showing()` reads the
+  current state. Nested `push`/`pop` pairs compose.
+
+```lua
+-- _prefix re-indents a returned multi-line string to the block's column
+local str = require("santoku.string")
+template.compile("start\n  <% return str.gsub('a\\nb\\nc', '\\n', '\\n' .. _prefix) %>")
+  ({ str = str })                          -- "start\n  a\n  b\n  c"
+
+-- push/pop gate a region
+template.compile("<% push(cond) %><% return 'x' %><% pop() %>")({ cond = false })  -- ""
+```
+
+Covers: variable interpolation, multiple blocks, shared block state, repeated
+rendering of one compiled template, and the `_prefix` cases in
+`test/spec/santoku/template.lua`.
+
+## Whitespace collapsing
+
+A block that returns nothing collapses the blank line around it: when an empty
+block sits on its own line, the trailing newline of the preceding text and the
+leading newline of the following text are joined, so removed blocks do not leave
+gaps. Trailing whitespace on the final output chunk is trimmed.
+
+```lua
+template.compile("one\n<% %>\ntwo")()      -- "one\ntwo"
+```
+
+Covers: `nil blocks collapse surrounding blank lines` in the core test.
+
+## Includes
+
+This engine does not inject an include function into the block environment. To
+nest templates, pass a helper (a `readfile` or a `renderfile`) through `env` or
+`global`; the block then calls it like any other value. This keeps file access
+explicit and the engine free of a fixed filesystem policy.
+
+```lua
+local fs = require("santoku.fs")
+
+-- raw file include via readfile passed in env
+template.compile("<% return readfile('test/res/template/title.html') %>")
+  ({ readfile = fs.readfile })
+
+-- nested render: the caller's renderfile threads the SAME env down each level,
+-- so a multi-level include chain (index -> body -> body-content) keeps seeing
+-- both renderfile and the data (here, title).
+local env
+local function renderfile (fp)
+  return template.compile(fs.readfile(fp))(env, _G)
+end
+env = { renderfile = renderfile, title = "Hello, World!" }
+template.compile("<% return renderfile('test/res/template/index.html') %>")(env)
+-- "Hello, World!"
+```
+
+Covers: `readfile provided via env` in the core test and the `renderfile include
+chain wired through a shared env` case in `template_deps.lua`. The fixtures under
+`test/res/template/` (`index.html`, `body.html`, `body-content.html`, ...) chain
+through this pattern; pass a `renderfile` that re-threads the shared env.
+
+## Dependency serialization
+
+When a build threads file accesses through the env, the caller can record which
+files a template read and emit a Makefile-style rule. `serialize_deps(source,
+dest, deps)` writes the rule; `deserialize_deps(data)` parses the dependency set
+back out of the first line.
+
+```lua
+local deps = { ["a.html"] = true }
+template.serialize_deps("main.html", "out.html", deps)
+-- "main.html: a.html\nout.html: main.html"
+
+template.deserialize_deps("main.html: a.html b.html")   -- { ["a.html"] = true, ["b.html"] = true }
+```
+
+Covers: `serialize_deps emits makefile rule` and `deserialize_deps round-trips the
+dep set` in `template_deps.lua`. The `deps` table itself is built by the caller;
+this module only serializes and parses it.
+
+## Building / testing
+
+This repo uses the `toku` build harness. Specs live in `test/spec/santoku/`. Run
+the suite through `toku` so `lpeg` and the `santoku` dependencies are on the path.
+Spec file edits need a forced rebuild/reinstall before a run.
 
 ## License
 
