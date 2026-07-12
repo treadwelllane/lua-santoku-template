@@ -1,6 +1,6 @@
 local err = require("santoku.error")
 local lua = require("santoku.lua")
-local lpeg = require("lpeg")
+local lpeg = require("santoku.re.core")
 local vdt = require("santoku.validate")
 local tbl = require("santoku.table")
 local inherit = require("santoku.inherit")
