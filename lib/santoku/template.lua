@@ -41,8 +41,6 @@ local function compile (data)
     for i = 1, #parts do
       local d = parts[i]
       if vdt.hascall(d) then
-        local prev = output[#output]
-        env._prefix = prev and str.match(prev, "\n([ \t]*)$") or ""
         d = lua.setfenv(d, env)()
       end
       if _showing[#_showing] then
