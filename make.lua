@@ -1,14 +1,14 @@
 local env = {
   name = "santoku-template",
-  version = "1.0.1-1",
+  version = "2.0.0-1",
   variable_prefix = "TK_TEMPLATE",
   license = "MIT",
   public = true,
   dependencies = {
     "lua == 5.1",
-    "santoku-lpeg >= 1.0.0, < 2.0.0",
-    "santoku >= 1.0.0, < 2.0.0",
-    "santoku-fs >= 1.0.0, < 2.0.0"
+    "santoku-lpeg >= 2.0.0, < 3.0.0",
+    "santoku >= 2.0.0, < 3.0.0",
+    "santoku-fs >= 2.0.0, < 3.0.0"
   },
 }
 
