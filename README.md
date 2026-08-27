@@ -1,13 +1,13 @@
 <p align="center">
-  <img src="https://santoku.dev/logo.png" width="96" alt="santoku logo">
+  <img src="https://santoku.dev/logo-santoku-template.png" height="64" alt="santoku-template">
 </p>
 
 # santoku-template
 
-A Lua template engine: text with embedded `<% ... %>` Lua blocks, compiled once
-into a render function you call with an environment. Blocks are plain Lua and
-share state within a render, and the module also serializes Makefile-style
-dependency rules for build integration.
+A Lua template engine: text with embedded `<% ... %>` Lua blocks, compiled once into a
+render function you call with an environment. Blocks are plain Lua and share state within
+a render, and the module also serializes Makefile-style dependency rules for build
+integration.
 
 ## Install
 
@@ -21,29 +21,31 @@ luarocks install santoku-template
 local template = require("santoku.template")
 
 local render = template.compile("<title><% return title %></title>")
+
 print(render({ title = "Hello, World!" }))
 ```
 
+A block that returns `nil` emits nothing and its surrounding blank line collapses, so
+conditional sections leave no stray whitespace behind.
+
 ## Documentation
 
-Full documentation with runnable examples:
-[santoku.dev](https://santoku.dev/#santoku-template).
+Runnable examples and the full API: [santoku.dev](https://santoku.dev/#santoku-template).
+
+For agents and LLM tooling: [llms.txt](https://santoku.dev/llms.txt) for the index,
+[llms-full.txt](https://santoku.dev/llms-full.txt) for every documented example.
 
 ## Tests
 
-For thorough examples of every behavior, read the specs in
-[test/spec/santoku](test/spec/santoku). The tests are the reference.
+The tests are the spec. For the exhaustive surface, read them:
+[`test/spec/santoku/template.lua`](test/spec/santoku/template.lua) and
+[`test/spec/santoku/template_deps.lua`](test/spec/santoku/template_deps.lua).
 
 ## License
 
 MIT, see [LICENSE](LICENSE).
 
-## Anchor spec
-
-The spec below is `test/spec/santoku/template_anchor.lua`, reproduced verbatim.
-It runs and passes as part of the test suite, and a companion spec
-(`test/spec/santoku/template_readme.lua`) fails the suite if this README and
-that file ever differ.
+## More examples
 
 ```lua
 local test = require("santoku.test")
