@@ -32,7 +32,7 @@ test("should handle trailing characters", function ()
       data-method="get"
       <% local tbl = require("santoku.table")
         local arr = require("santoku.array")
-        local format = string.format
+        local format = require("santoku.string").format
         return arr.concat(arr.map(tbl.entries(redirects), function (e)
           return format("data-handler-%d=\"redirect:%s\"", e[1], e[2])
         end)) %>>
